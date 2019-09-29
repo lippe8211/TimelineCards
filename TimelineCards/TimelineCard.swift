@@ -306,6 +306,9 @@ public class TimelineCard: UIView {
 	private var descriptionViewsContainer = UIView()
 	
 	private var timelineMetrics: VerticalMetrics? = nil
+  
+  public var iOS13TouchFix: (() -> ())?
+  
 	
 	// MARK: Initializers
 	
@@ -788,6 +791,15 @@ public class TimelineCard: UIView {
 			super.touchesBegan(touches, with: event)
 			return
 		}
+    
+    if SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(version: "13") {
+      
+      if let closure = self.iOS13TouchFix {
+        closure()
+        return
+      }
+    }
+
 		
 		if let header = headerView, header.frame.contains(touch.location(in: self)) {
 			eventsHandler?.didTouchHeaderView(header, in: self)
@@ -799,28 +811,34 @@ public class TimelineCard: UIView {
 			} else {
 				eventsHandler?.didSelectElement(at: touchedIndex.0, in: self)
 			}
-			
 		}
 		
 		super.touchesBegan(touches, with: event)
 	}
 	
+  func SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(version: String) -> Bool {
+    return UIDevice.current.systemVersion.compare(version,
+                                                  options: NSString.CompareOptions.numeric) != ComparisonResult.orderedAscending
+  }
+
+  
 	private func elementIndexAtTimelineLocation(_ location: CGPoint) -> (Int, Int?)? {
 		guard let metrics = timelineMetrics else { return nil }
-		
-		func indexOfLocation(_ location: CGPoint, in spaces: [VerticalMetrics.SpaceBounds], containerOriginX: CGFloat, containerWidth: CGFloat) -> (Int, Int?)? {
+		var newLocation = location
+    
+		func indexOfLocation(_ location2: CGPoint, in spaces: [VerticalMetrics.SpaceBounds], containerOriginX: CGFloat, containerWidth: CGFloat) -> (Int, Int?)? {
 			for i in 0 ..< spaces.count {
 				let spaceInfo = spaces[i]
 				let spaceFrame = CGRect(x: containerOriginX, y: spaceInfo.origin, width: containerWidth,
 										height: spaceInfo.height)
-				if spaceFrame.contains(location) {
+				if spaceFrame.contains(location2) {
 					return (i, nil)
 				} else if let subspacesInfo = spaceInfo.childBounds {
 					for j in 0 ..< subspacesInfo.count {
 						let subSpaceInfo = subspacesInfo[j]
 						let subSpaceFrame = CGRect(x: containerOriginX, y: subSpaceInfo.origin, width: containerWidth, height: subSpaceInfo.height)
 						
-						if subSpaceFrame.contains(location) {
+						if subSpaceFrame.contains(location2) {
 							return (i, j)
 						}
 					}
@@ -829,8 +847,18 @@ public class TimelineCard: UIView {
 			
 			return nil
 		}
-		
-		return indexOfLocation(timelineView.convert(location, to: timelineContainer), in: metrics.elementIconSpaces, containerOriginX: margins.0, containerWidth: timelineContainer.bounds.width) ?? indexOfLocation(timelineView.convert(location, to: descriptionViewsContainer), in: metrics.elementDescriptionSpaces, containerOriginX: 0, containerWidth: descriptionViewsContainer.bounds.width)
+    
+    if SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(version: "13") {
+      if let headerView = headerView {
+        newLocation.y = newLocation.y - headerView.frame.size.height
+      }
+    }
+    
+   let x = indexOfLocation(timelineView.convert(newLocation, to: timelineContainer), in: metrics.elementIconSpaces, containerOriginX: margins.0, containerWidth: timelineContainer.bounds.width)
+    
+    let y = indexOfLocation(timelineView.convert(newLocation, to: descriptionViewsContainer), in: metrics.elementDescriptionSpaces, containerOriginX: 0, containerWidth: descriptionViewsContainer.bounds.width)
+    
+		return x ?? y
 	}
 }
 
