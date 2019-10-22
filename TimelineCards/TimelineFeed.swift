@@ -354,6 +354,7 @@ public class TimelineFeed: UIView, UITableViewDataSource, UITableViewDelegate, T
 	// MARK: Displaying data
 	
 	public func reloadData() {
+    print(" [timelinefeed] reload data] ")
 		guard let _ = dataSource else { return }
 		cardsContainer.reloadData()
 	}

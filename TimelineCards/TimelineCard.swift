@@ -167,6 +167,8 @@ public class TimelineCard: UIView {
 			setUpAppearance()
 		}
 	}
+  
+  public var containerColor: UIColor?
 	
 	public var borderAppearance: (UIColor, CGFloat) = (.lightGray, 1.0) {
 		didSet {
@@ -282,7 +284,7 @@ public class TimelineCard: UIView {
 		}
 	}
 	
-	private var marginAroundTimeline: CGFloat = 20.0 {
+	public var marginAroundTimeline: CGFloat = 20.0 {
 		didSet {
 			if autoreload { reload() }
 		}
@@ -308,6 +310,7 @@ public class TimelineCard: UIView {
 	private var timelineMetrics: VerticalMetrics? = nil
   
   public var iOS13TouchFix: (() -> ())?
+  public var addButton: Bool = false
   
 	
 	// MARK: Initializers
@@ -318,12 +321,13 @@ public class TimelineCard: UIView {
 	///		- origin: Optional position of the card
 	/// 	- width: Static width of the card
 	
-	required public init(origin: CGPoint = .zero, width: CGFloat) {
+  required public init(origin: CGPoint = .zero, width: CGFloat, _ addButton: Bool = false) {
 		super.init(frame: CGRect(x: origin.x, y: origin.y,
 		                         width: width, height: 0))
 		
 		self.origin = origin
 		self.width = width
+    self.addButton = addButton
 	}
 	
 	required public init?(coder aDecoder: NSCoder) {
@@ -548,16 +552,20 @@ public class TimelineCard: UIView {
 		timelineContainer.clipsToBounds = true
 		timelineView.addSubview(timelineContainer)
 		
-		let timelinePath = pathForCurrentTimeline()
+    
+    if !addButton {
+      let timelinePath = pathForCurrentTimeline()
+      
+      let timelineLayer = CAShapeLayer()
+      timelineLayer.frame = timelineContainer.bounds
+      timelineLayer.path = timelinePath
+      timelineLayer.lineWidth = timelinePathWidth
+      timelineLayer.fillColor = UIColor.clear.cgColor
+      timelineLayer.strokeColor = lineColor.cgColor
+      
+      timelineContainer.layer.addSublayer(timelineLayer)
+    }
 		
-		let timelineLayer = CAShapeLayer()
-		timelineLayer.frame = timelineContainer.bounds
-		timelineLayer.path = timelinePath
-		timelineLayer.lineWidth = timelinePathWidth
-		timelineLayer.fillColor = UIColor.clear.cgColor
-		timelineLayer.strokeColor = lineColor.cgColor
-		
-		timelineContainer.layer.addSublayer(timelineLayer)
 		
 		// Add milestone icons
 		
@@ -574,9 +582,21 @@ public class TimelineCard: UIView {
 			let imageWidth = shapeHeightForElement * itemIconScaleFactor
 			let imageHeight = spaceInfo.height * itemIconScaleFactor
 			let imagePaddingX = (shapeHeightForElement - imageWidth) / 2
-			let imagePaddingY = (spaceInfo.height - imageHeight) / 2
+      
+      var imagePaddingY = (spaceInfo.height - imageHeight) / 2
+      if addButton {
+        imagePaddingY = (timelineContainer.frame.size.height - imageHeight) / 2//(spaceInfo.height - imageHeight) / 2
+      }
 			
-			let imageView = UIImageView(frame: CGRect(x: margins.0 + (timelineWidth / 2 - shapeHeightForElement / 2) + imagePaddingX, y: spaceInfo.origin + imagePaddingY, width: imageWidth, height: imageHeight))
+      //let imageCenter = (timelineContainer.frame.size.height - imageHeight) / 2
+      // --> originalet
+      var imageCenter = spaceInfo.origin + imagePaddingY
+      if addButton {
+        imageCenter = imagePaddingY
+      }
+      
+      let imageFrame: CGRect = CGRect(x: margins.0 + (timelineWidth / 2 - shapeHeightForElement / 2) + imagePaddingX, y: imageCenter, width: imageWidth, height: imageHeight)
+			let imageView = UIImageView(frame: imageFrame)
 			imageView.image = icon
 			imageView.contentMode = .scaleAspectFit
 			imageView.backgroundColor = .clear
@@ -587,6 +607,11 @@ public class TimelineCard: UIView {
 			imageView.layer.mask = maskLayer
 			
 			timelineContainer.addSubview(imageView)
+      
+      if addButton {
+        timelineContainer.backgroundColor = self.containerColor ?? self.backgroundColor //UIColor(red:0.04, green:0.67, blue:0.91, alpha:1.0)
+        borderAppearance = (timelineContainer.backgroundColor!, 1.5)
+      }
 		}
 		
 		for i in 0 ..< itemIconsMetrics.count {
@@ -824,7 +849,7 @@ public class TimelineCard: UIView {
   
 	private func elementIndexAtTimelineLocation(_ location: CGPoint) -> (Int, Int?)? {
 		guard let metrics = timelineMetrics else { return nil }
-		var newLocation = location
+		//var newLocation = location
     
 		func indexOfLocation(_ location2: CGPoint, in spaces: [VerticalMetrics.SpaceBounds], containerOriginX: CGFloat, containerWidth: CGFloat) -> (Int, Int?)? {
 			for i in 0 ..< spaces.count {
@@ -848,15 +873,15 @@ public class TimelineCard: UIView {
 			return nil
 		}
     
-    if SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(version: "13") {
+    /*if SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(version: "13") {
       if let headerView = headerView {
         newLocation.y = newLocation.y - headerView.frame.size.height
       }
-    }
+    }*/
     
-   let x = indexOfLocation(timelineView.convert(newLocation, to: timelineContainer), in: metrics.elementIconSpaces, containerOriginX: margins.0, containerWidth: timelineContainer.bounds.width)
+   let x = indexOfLocation(timelineView.convert(location, to: timelineContainer), in: metrics.elementIconSpaces, containerOriginX: margins.0, containerWidth: timelineContainer.bounds.width)
     
-    let y = indexOfLocation(timelineView.convert(newLocation, to: descriptionViewsContainer), in: metrics.elementDescriptionSpaces, containerOriginX: 0, containerWidth: descriptionViewsContainer.bounds.width)
+    let y = indexOfLocation(timelineView.convert(location, to: descriptionViewsContainer), in: metrics.elementDescriptionSpaces, containerOriginX: 0, containerWidth: descriptionViewsContainer.bounds.width)
     
 		return x ?? y
 	}
